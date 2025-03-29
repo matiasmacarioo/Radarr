@@ -143,9 +143,11 @@ namespace NzbDrone.Core.IndexerSearch
 
         private List<DownloadDecision> DeDupeDecisions(List<DownloadDecision> decisions)
         {
-            // De-dupe reports by guid so duplicate results aren't returned. Pick the one with the least rejections and higher indexer priority.
+            // De-dupe reports by guid so duplicate results aren't returned. Pick the top 5 with the least rejections and higher indexer priority.
             return decisions.GroupBy(d => d.RemoteMovie.Release.Guid)
-                .Select(d => d.OrderBy(v => v.Rejections.Count()).ThenBy(v => v.RemoteMovie?.Release?.IndexerPriority ?? IndexerDefinition.DefaultPriority).First())
+                .SelectMany(d => d.OrderBy(v => v.Rejections.Count())  // Ordenamos por el número de rechazos (menos rechazos primero)
+                                .ThenBy(v => v.RemoteMovie?.Release?.IndexerPriority ?? IndexerDefinition.DefaultPriority)  // Luego por la prioridad del indexador (más alta primero)
+                                .Take(5))  // Tomamos los 5 mejores
                 .ToList();
         }
     }

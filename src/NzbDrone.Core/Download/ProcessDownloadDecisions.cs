@@ -39,6 +39,14 @@ namespace NzbDrone.Core.Download
         {
             var qualifiedReports = GetQualifiedReports(decisions);
             var prioritizedDecisions = _prioritizeDownloadDecision.PrioritizeDecisionsForMovies(qualifiedReports);
+
+            // Seleccionamos las mejores 5 decisiones
+            var top5Decisions = prioritizedDecisions
+                .OrderBy(d => d.Rejections.Count())  // Ordenamos por el número de rechazos (menos rechazos primero)
+                .ThenBy(d => d.RemoteMovie?.Release?.IndexerPriority ?? IndexerDefinition.DefaultPriority)  // Luego por la prioridad del indexador (más alta primero)
+                .Take(5)  // Tomamos solo las 5 mejores decisiones
+                .ToList();
+
             var grabbed = new List<DownloadDecision>();
             var pending = new List<DownloadDecision>();
             var rejected = decisions.Where(d => d.Rejected).ToList();
@@ -48,7 +56,7 @@ namespace NzbDrone.Core.Download
             var usenetFailed = false;
             var torrentFailed = false;
 
-            foreach (var report in prioritizedDecisions)
+            foreach (var report in top5Decisions)
             {
                 var downloadProtocol = report.RemoteMovie.Release.DownloadProtocol;
 
@@ -168,10 +176,11 @@ namespace NzbDrone.Core.Download
         {
             var movieId = report.RemoteMovie.Movie.Id;
 
-            return decisions.Select(r => r.RemoteMovie.Movie)
-                            .Select(e => e.Id)
-                            .ToList()
-                            .Contains(movieId);
+            // Contamos cuántas decisiones contienen el movieId
+            var count = decisions.Count(d => d.RemoteMovie.Movie.Id == movieId);
+
+            // Verificamos si el conteo de decisiones con ese movieId es igual a 5
+            return count == 5;
         }
 
         private void PreparePending(List<Tuple<DownloadDecision, PendingReleaseReason>> queue, List<DownloadDecision> grabbed, List<DownloadDecision> pending, DownloadDecision report, PendingReleaseReason reason)
